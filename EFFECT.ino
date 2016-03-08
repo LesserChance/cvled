@@ -1,17 +1,21 @@
-boolean effect_running[NUM_LEDS];
-unsigned long effect_start[NUM_LEDS];
-unsigned int effect_length[NUM_LEDS];
-byte effect_inital_value[NUM_LEDS];
+boolean effect_running[NUM_LEDS/EFFECT_SPREAD];
+unsigned long effect_start[NUM_LEDS/EFFECT_SPREAD];
+unsigned int effect_length[NUM_LEDS/EFFECT_SPREAD];
+byte effect_inital_value[NUM_LEDS/EFFECT_SPREAD];
 
 /**
  * run the current step in all running effects, update the strip
  */
 void playEffects() {
-  for(int i = 0; i < NUM_LEDS; i++) {
-    if (effect_running[i]) {
-      setLedEffectColor(i);
-    } else {
-      leds.setPixelColor(i, NO_COLOR);
+  for(int i = 0; i < NUM_LEDS; i+=EFFECT_SPREAD) {
+    bool effectRunning = effect_running[i/EFFECT_SPREAD];
+
+    for(int j = 0; j < EFFECT_SPREAD; j++) {
+      if (effectRunning) {
+        setLedEffectColor(i+j);
+      } else {
+        leds.setPixelColor(i+j, NO_COLOR);
+      }
     }
   }
   
@@ -20,43 +24,43 @@ void playEffects() {
 
 /**
  * Tell an individual led to start its effect
- * @param {int} led
+ * @param {int} led - the ACTUAL led
  */
 void startEffect(int led) {
-  for(int i = led - EFFECT_SPREAD; i <= led + EFFECT_SPREAD; i++) {
-    if (i >= 0 && i < NUM_LEDS) {
-      startLedEffect(i);
-    }
-  }
+  int start_led = led - (led % (EFFECT_SPREAD));
+  startLedEffect(start_led);
 }
 
 /**
  * Set the start params for an leds effect
- * @param {int} led
+ * @param {int} led - the START led
  */
 void startLedEffect(int led) {
-  effect_running[led] = true;
-  effect_start[led] = millis();
+  int effect_index = led/EFFECT_SPREAD;
+  
+  effect_running[effect_index] = true;
+  effect_start[effect_index] = millis();
 
   // the duration of the effect
-  effect_length[led] = 600;
+  effect_length[effect_index] = EFFECT_DUR;
 
   // the initial value (that will taper off) for the effect
   // in this case, brightness, 0-255
-  effect_inital_value[led] = 255;
+  effect_inital_value[effect_index] = 255;
 }
 
 /**
  * run the current step in the given effect
- * @param {int} led
+ * @param {int} led - the ACTUAL led
  */
 void setLedEffectColor(int led) {
   unsigned long clock = millis();
   int brightness = getEffectValue(clock, led);
+  int effect_index = led/EFFECT_SPREAD;
 
   if (brightness == 0) {
     // end the effect
-    effect_running[led] = false;
+    effect_running[effect_index] = false;
   } else {
     // keep running the effect
     lightLedWithBrightness(led, brightness);
@@ -66,24 +70,25 @@ void setLedEffectColor(int led) {
 /**
  * given the clock and led, determine what the current effect value should be
  * @param {unsigned long} clock
- * @param {int} led
+ * @param {int} led - the ACTUAL led
  */
 int getEffectValue(unsigned long clock, int led) {
-  int effect_step = clock - effect_start[led];
+  int effect_index = led/EFFECT_SPREAD;
+  int effect_step = clock - effect_start[effect_index];
 
-  if (effect_step > effect_length[led]) {
+  if (effect_step > effect_length[effect_index]) {
     // the effect has ended
     return 0;
   }
 
   // the effect has not ended
-  float step_by = effect_inital_value[led] / (float) effect_length[led];
-  return effect_inital_value[led] - (effect_step * step_by);
+  float step_by = effect_inital_value[effect_index] / (float) effect_length[effect_index];
+  return effect_inital_value[effect_index] - (effect_step * step_by);
 }
 
 /**
  * Set an led to its proper color given its position and brightness
- * @param {int} led
+ * @param {int} led - the ACTUAL led
  * @param {int} brightness
  * @return uint32_t
  */
@@ -94,14 +99,15 @@ void lightLedWithBrightness(int led, int brightness) {
 
 /**
  * get an led color given its position and brightness
- * @param {int} led
+ * @param {int} led - the ACTUAL led
  * @param {int} brightness
  * @return uint32_t
  */
 uint32_t getLedColor(int led, int brightness) {
-  byte red = ledColors[led][0];
-  byte green = ledColors[led][1];
-  byte blue = ledColors[led][2];
+  int color_index = led/EFFECT_SPREAD;
+  byte red = ledColors[color_index][0];
+  byte green = ledColors[color_index][1];
+  byte blue = ledColors[color_index][2];
   
   //scale each color by a factor of the brightness
   // brightness of 255 = a full start value
